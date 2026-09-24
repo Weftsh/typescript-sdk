@@ -114,7 +114,10 @@ export type CommitOperation =
 
 /** Options for {@link Repo.createCommit} and {@link Repo.commit}. */
 export interface CommitOptions {
-  /** Defaults to `"main"`. Created if it does not exist. */
+  /**
+   * Defaults to `"main"` — not the repository's default branch, so pass it
+   * if yours is called something else. Created if it does not exist.
+   */
   branch?: string;
   message: string;
   /** Who `git log` shows. Defaults to the person or token acting. */

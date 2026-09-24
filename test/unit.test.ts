@@ -197,9 +197,18 @@ describe('reads', () => {
     expect(calls[1]!.headers['If-None-Match']).toBe('"abc"');
   });
 
-  it('readFile resolves null for a missing path', async () => {
-    const { weft } = client(json(404, { error: 'not in this layout' }));
+  it('readFile resolves null for a missing path or revision', async () => {
+    const { weft } = client(json(404, { error: '"nope" not in this layout at "HEAD"' }), json(404, { error: 'unknown rev "gone"' }));
     expect(await weft.repo('r').readFile('nope')).toBeNull();
+    expect(await weft.repo('r').readFile('a', { ref: 'gone' })).toBeNull();
+  });
+
+  it('readFile throws when the repository itself is not there', async () => {
+    // The server answers a missing (or invisible) repository with a bare
+    // `not found`, not a JSON error: a typo in the repo name must not
+    // read as "this file does not exist".
+    const { weft } = client(new Response('not found', { status: 404 }));
+    await expect(weft.repo('typo').readFile('a')).rejects.toMatchObject({ status: 404 });
   });
 
   it('maps log entries and the cursor', async () => {

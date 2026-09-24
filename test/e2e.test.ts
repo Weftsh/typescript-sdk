@@ -170,6 +170,9 @@ describe.skipIf(!enabled)('against a live Weft server', () => {
     const found = await weft.findOne({ name: repo.name });
     expect(found?.info).toMatchObject({ description: 'renamed', homepage: 'https://example.com' });
     expect(await weft.findOne({ name: 'no-such-repo-anywhere' })).toBeNull();
+    // A missing repository is an error, not a missing file.
+    await expect(weft.repo('no-such-repo-anywhere').readFile('README.md')).rejects.toMatchObject({ status: 404 });
+    expect(await repo.readFile('README.md', { ref: 'no-such-branch' })).toBeNull();
   });
 
   it.skipIf(!hasGit())('hands out a working git remote with a repo-scoped credential', async () => {

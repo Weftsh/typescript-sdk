@@ -153,7 +153,7 @@ nothing is checked out anywhere.
 ```ts
 const result = await repo
   .createCommit({
-    branch: 'main', // default 'main'; created if it does not exist
+    branch: 'main', // default 'main' (whatever the repo's default is); created if missing
     message: 'agent step 12',
     author: { name: 'Build Agent', email: 'agent@acme.dev' }, // optional
     context: { run: 'r-42', prompt: 'p-991' }, // optional audit record
@@ -451,8 +451,10 @@ try {
 | `WeftConflictError` | `409` from a concurrency check. `currentTip` is where the branch is. Extends `WeftError`. |
 | `WeftError`         | Anything else. `status` is `0` when the request never got an answer. |
 
-Lookups that commonly miss return `null` instead of throwing: `findOne`,
-`getFile` and `readFile`.
+Lookups that commonly miss return `null` instead of throwing: `findOne` for
+a repository, and `getFile` and `readFile` for a path or revision that is not
+there. A file read from a repository that does not exist still throws — a typo
+in a repository name is not a missing file.
 
 A `404` also covers "exists, but not for you" — Weft does not tell a caller
 about repositories it cannot see.

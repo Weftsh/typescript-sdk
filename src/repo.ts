@@ -1,4 +1,5 @@
 import { CommitBuilder } from './commit.js';
+import { WeftError } from './errors.js';
 import { putOperation } from './encoding.js';
 import { encodePath, type Http } from './http.js';
 import type {
@@ -64,6 +65,18 @@ export function repoInfoFromWire(w: Wire): RepoInfo {
     forkParent: w.fork_parent ?? null,
     forkCount: w.fork_count ?? 0,
   };
+}
+
+/**
+ * A 404 about something *inside* a repository — a path or a revision —
+ * rather than about the repository. The server tells them apart by shape:
+ * inside, a JSON `{ "error": … }` naming what was missing; the repository
+ * itself, a bare `not found` that says nothing about whether it exists.
+ */
+function isMissingInRepo(e: unknown): boolean {
+  if (!(e instanceof WeftError) || e.status !== 404) return false;
+  const body = e.body as { error?: unknown } | undefined;
+  return typeof body === 'object' && body !== null && typeof body.error === 'string';
 }
 
 function refFromWire(w: Wire): Ref {
@@ -215,14 +228,15 @@ export class Repo {
 
   /**
    * Reads a file at any revision. Returns `null` when the path does not
-   * exist there.
+   * exist at that revision, or the revision does not exist. A repository
+   * that does not exist (or that you cannot see) throws a 404 `WeftError`.
    */
   async getFile(path: string, options: GetFileOptions = {}): Promise<FileResult | null> {
     let response: Response;
     try {
       response = await this.getFileStream(path, options);
     } catch (e) {
-      if ((e as { status?: number }).status === 404) return null;
+      if (isMissingInRepo(e)) return null;
       throw e;
     }
     const notModified = response.status === 304;
@@ -240,7 +254,7 @@ export class Repo {
     };
   }
 
-  /** Reads a file as UTF-8 text, or `null` when it does not exist at that revision. */
+  /** Reads a file as UTF-8 text, or `null` when it does not exist at that revision. See {@link Repo.getFile}. */
   async readFile(path: string, options: Omit<GetFileOptions, 'ifNoneMatch'> = {}): Promise<string | null> {
     const file = await this.getFile(path, options);
     return file ? file.text() : null;
