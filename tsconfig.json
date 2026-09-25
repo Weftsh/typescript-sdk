@@ -11,7 +11,8 @@
     "verbatimModuleSyntax": true,
     "declaration": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": ["node"],
+    "paths": { "@weftsh/sdk": ["./src/index.ts"] }
   },
   "include": ["src", "test", "examples"]
 }

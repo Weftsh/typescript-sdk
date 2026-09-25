@@ -183,12 +183,35 @@ export class Repo {
    * default).
    */
   async getRemoteURL(options: GetRemoteURLOptions = {}): Promise<string> {
-    const minted = await this.ctx.createToken({
-      scopes: [options.access === 'read' ? 'repo:read' : 'repo:write'],
-      repo: this.name,
-      label: options.label ?? `remote:${this.name}`,
-      ttl: options.ttl ?? 3600,
-    }, this.org);
+    const scope = options.access === 'read' ? 'repo:read' : 'repo:write';
+    let minted: CreatedToken;
+    try {
+      minted = await this.ctx.createToken({
+        scopes: [scope],
+        repo: this.name,
+        label: options.label ?? `remote:${this.name}`,
+        ttl: options.ttl ?? 3600,
+      }, this.org);
+    } catch (e) {
+      // The server answers a token that may not mint with a bare 404 (it
+      // does not say what exists to a caller who cannot see it), which
+      // reads as nonsense halfway through a quickstart. Say what is needed.
+      if (e instanceof WeftError && [400, 403, 404].includes(e.status)) {
+        const error = new WeftError({
+          message:
+            `getRemoteURL could not mint a credential for ${this.org}/${this.name} (${e.status}: ${e.message}). ` +
+            `It mints a token scoped to this repository, so the client's token needs org:read and ${scope}, ` +
+            `or org:admin — and the repository must exist.`,
+          status: e.status,
+          method: e.method,
+          url: e.url,
+          body: e.body,
+        });
+        (error as { cause?: unknown }).cause = e;
+        throw error;
+      }
+      throw e;
+    }
     const url = new URL(this.cloneUrl);
     url.username = 'x';
     url.password = minted.token;

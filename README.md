@@ -29,8 +29,96 @@ you can clone, push to and export.
 - ESM and CommonJS, with full type definitions.
 - One method per thing you want to do, named for it.
 
+## Quickstart
+
+From nothing to a repository you have committed to over HTTP and cloned with
+`git`, in about five minutes.
+
+**1. Get a token.** [Create an account](https://weft.sh/login?mode=signup)
+(free, no card) and an organization, then mint a token under
+**Settings → Tokens** with `org:read` and `repo:write`. `repo:write` creates and commits;
+`org:read` lets the SDK mint the short-lived clone credential in step 4. An
+`org:admin` token does both.
+
+```bash
+export WEFT_TOKEN=weft_…     # the token you just minted
+export WEFT_ORG=acme         # your organization's name
+```
+
+**2. Install.**
+
+```bash
+npm install @weftsh/sdk
+```
+
+**3. Save this as `quickstart.mts` and run it.** It needs `git` on your `PATH` for
+the last step.
+
+<!-- quickstart:start — kept identical to examples/quickstart.mts by a test -->
+```ts
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Weft } from '@weftsh/sdk';
+
+const weft = new Weft({
+  token: process.env.WEFT_TOKEN!,
+  org: process.env.WEFT_ORG!,
+  baseUrl: process.env.WEFT_URL, // optional: defaults to https://api.weft.sh
+});
+
+// 1. A repository of its own: a real git remote, made in well under a second.
+const repo = await weft.createRepo();
+console.log('created   ', repo.name);
+
+// 2. A commit, straight over HTTP. No clone, no checkout, no disk.
+const { commit } = await repo
+  .createCommit({ message: 'first commit' })
+  .put('hello.txt', 'hello from the Weft SDK\n')
+  .send();
+console.log('committed ', commit.slice(0, 7));
+
+// 3. Read it back, at the branch tip or at any commit.
+console.log('read back ', JSON.stringify(await repo.readFile('hello.txt')));
+
+// 4. It is still git. This URL carries a credential for this repository
+//    only, and it expires in an hour.
+const url = await repo.getRemoteURL();
+const dir = join(mkdtempSync(join(tmpdir(), 'weft-')), repo.name);
+execFileSync('git', ['clone', '--quiet', url, dir]);
+console.log('cloned    ', readFileSync(join(dir, 'hello.txt'), 'utf8').trim());
+```
+<!-- quickstart:end -->
+
+```bash
+node quickstart.mts        # Node 22.18+; or: npx tsx quickstart.mts
+```
+
+**4. See what it did.** You should get something like this (your
+repository name and commit will differ):
+
+```text
+created    repo-4259aedc-3173-4cb7-a3cd-1dbf15fc30c7
+committed  889ba6d
+read back  "hello from the Weft SDK\n"
+cloned     hello from the Weft SDK
+```
+
+That repository is yours: it is in the dashboard, you can `git push` to it,
+and it costs nothing while it sits there. Run the script again and you get a
+second one.
+
+**Where next:**
+
+- [Commits](#commits): branches, concurrency with `expectedParent`, and the audit `context`
+- [Reading](#reading): any file at any revision, history, diffs
+- [Git remotes](#git-remotes): read-only URLs, lifetimes, and what the credential can reach
+- [Webhooks](#webhooks): hear about every push
+
 ## Contents
 
+- [Quickstart](#quickstart)
 - [Install](#install)
 - [Set up the client](#set-up-the-client)
 - [Repositories](#repositories)
@@ -333,9 +421,10 @@ git commit -am "from a sandbox" && git push
 | `ttl`    | `3600`    | Seconds until the credential dies. At most a year.   |
 | `label`  | `remote:<repo>` | Shown in the token list and in the audit trail. |
 
-Each call mints a new token, which needs a client token allowed to mint:
-`org:admin` for a service token, or a personal token whose owner can write to
-the repository. `repo.cloneUrl` is the same URL with no credential in it.
+Each call mints a new token, so the client's own token must be allowed to
+mint one: an `org:admin` token, or a personal token carrying `org:read` (to
+mint) and `repo:write` (to grant write access; `repo:read` is enough for
+`access: 'read'`). `repo.cloneUrl` is the same URL with no credential in it.
 
 ## Tokens
 

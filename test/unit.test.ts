@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { Weft, WeftConflictError, WeftError, verifyWebhook } from '../src/index.js';
 
@@ -255,6 +256,30 @@ describe('getRemoteURL', () => {
   });
 });
 
+describe('getRemoteURL refusals', () => {
+  it.each([404, 403, 400])('explains a %i from the mint instead of passing on a bare status', async (status) => {
+    const { weft } = client(json(status, { error: 'not found' }));
+    const err = await weft.repo('session-1').getRemoteURL().catch((e) => e);
+    expect(err).toBeInstanceOf(WeftError);
+    expect(err.status).toBe(status);
+    expect(err.message).toMatch(/getRemoteURL could not mint a credential for acme\/session-1/);
+    expect(err.message).toMatch(/org:read and repo:write, or org:admin/);
+    expect(err.cause).toBeInstanceOf(WeftError);
+  });
+
+  it('names repo:read for a read-only URL', async () => {
+    const { weft } = client(json(404, { error: 'not found' }));
+    const err = await weft.repo('r').getRemoteURL({ access: 'read' }).catch((e) => e);
+    expect(err.message).toMatch(/org:read and repo:read/);
+  });
+
+  it('passes anything else through untouched', async () => {
+    const { weft } = client(json(500, { error: 'boom' }));
+    const err = await weft.repo('r').getRemoteURL().catch((e) => e);
+    expect(err.message).toBe('boom');
+  });
+});
+
 describe('errors', () => {
   it('reports a network failure as status 0 with the cause', async () => {
     const weft = new Weft({
@@ -309,3 +334,15 @@ function repoInfo() {
     syncError: null, forkState: null, forkParent: null, forkCount: 0,
   };
 }
+
+describe('README', () => {
+  it('shows the quickstart exactly as examples/quickstart.mts has it', () => {
+    // The README's quickstart is what people copy. The example file is what
+    // the e2e suite runs. If they drift, the one people copy is untested.
+    const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+    const example = readFileSync(new URL('../examples/quickstart.mts', import.meta.url), 'utf8');
+    const block = /<!-- quickstart:start[^>]*-->\n```ts\n([\s\S]*?)```\n<!-- quickstart:end -->/.exec(readme);
+    expect(block, 'quickstart markers missing from README.md').not.toBeNull();
+    expect(block![1]).toBe(example);
+  });
+});

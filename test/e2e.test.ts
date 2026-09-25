@@ -285,6 +285,23 @@ describe.skipIf(!enabled)('against a live Weft server', () => {
     expect(new TextDecoder().decode(bytes.subarray(0, 16))).toMatch(/^# v[23] git bundle/);
   });
 
+  it.skipIf(!hasGit())('runs the README quickstart exactly as written', () => {
+    // A subprocess, importing '@weftsh/sdk' by name from the built package,
+    // the way somebody who copied it would.
+    const root = new URL('..', import.meta.url).pathname;
+    execFileSync('npx', ['tsup', '--silent'], { cwd: root, stdio: 'pipe' });
+    const out = execFileSync('node', ['examples/quickstart.mts'], {
+      cwd: root,
+      env: { ...process.env, WEFT_TOKEN: token, WEFT_ORG: org, WEFT_URL: url },
+    }).toString();
+    const name = /^created\s+(\S+)$/m.exec(out)?.[1];
+    expect(name, out).toMatch(/^repo-/);
+    made.push(name!);
+    expect(out).toMatch(/^committed\s+[0-9a-f]{7}$/m);
+    expect(out).toMatch(/^read back\s+"hello from the Weft SDK\\n"$/m);
+    expect(out).toMatch(/^cloned\s+hello from the Weft SDK$/m);
+  });
+
   it('deletes the repository', async () => {
     const doomed = await weft.createRepo();
     await doomed.delete();
