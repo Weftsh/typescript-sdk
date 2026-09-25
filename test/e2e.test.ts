@@ -31,7 +31,9 @@ function hasGit(): boolean {
 }
 
 describe.skipIf(!enabled)('against a live Weft server', () => {
-  const weft = new Weft({ token: token!, org: org!, baseUrl: url });
+  // Built only when enabled: vitest runs a skipped describe's body to
+  // collect its tests, and the constructor refuses an empty token.
+  const weft = enabled ? new Weft({ token: token!, org: org!, baseUrl: url }) : (undefined as unknown as Weft);
   const made: string[] = [];
   const scratch = mkdtempSync(join(tmpdir(), 'weft-sdk-e2e-'));
 
